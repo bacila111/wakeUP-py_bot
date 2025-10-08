@@ -1,10 +1,18 @@
 import telebot
 import datetime
 import openpyxl
+import os
 from datetime import datetime, timedelta
 from telebot import types
+from dotenv import load_dotenv
 
-bot = telebot.TeleBot('8239476473:AAGXfOQzuQlAqd3nMruyAQhK-ingXE3yDoo')
+
+load_dotenv()
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+SCHEDULE_FILE = os.getenv("SCHEDULE_FILE", "schedule.xlsx")
+
+bot = telebot.TeleBot(BOT_TOKEN)
 
 # Переменная для отслеживания текущего раздела
 user_states = {}
@@ -93,6 +101,7 @@ def calculate_wake_up_time(schedule, day_type):
 
     # Время подъема (в минутах от начала дня)
     wake_up_minutes = pair_time_minutes - total_minutes_before
+    ready_to_go = pair_time_minutes - travel_time
 
     # Преобразуем обратно в формат времени
     wake_up_hours = wake_up_minutes // 60
@@ -100,11 +109,11 @@ def calculate_wake_up_time(schedule, day_type):
 
     wake_up_time = f"{wake_up_hours:02d}:{wake_up_minutes:02d}"
 
-    result = f"⏰ Вам нужно встать в {wake_up_time}\n"
+    result = f"⏰ Тебе нужно встать в {wake_up_time}\n"
     result += f"📚 Первая пара: {first_pair['time']} ({first_pair['name']})\n"
     result += f"🏫 Корпус: {location}\n"
     result += f"🚗 Время на дорогу: {travel_time} мин\n"
-    result += f"🛏️ Время на сборы: {preparation_time // 60} ч {preparation_time % 60} мин\n"
+    result += f"🛏️ Выйти: {ready_to_go // 60}:{ready_to_go % 60}\n"
 
     return result
 
@@ -173,7 +182,7 @@ def text_button(message):
 
         # Сохраняем состояние пользователя
         user_states[message.chat.id] = 'встать'
-        bot.send_message(message.chat.id, "Когда вы хотите встать?", reply_markup=markup)
+        bot.send_message(message.chat.id, "Сегодня или завтра?", reply_markup=markup)
 
     elif message.text == 'Расписание':
         # Создаем клавиатуру для расписания
@@ -186,7 +195,7 @@ def text_button(message):
 
         # Сохраняем состояние пользователя
         user_states[message.chat.id] = 'расписание'
-        bot.send_message(message.chat.id, "Выберите день:", reply_markup=markup)
+        bot.send_message(message.chat.id, "Выбери день:", reply_markup=markup)
 
 
     elif message.text == 'Сегодня':
