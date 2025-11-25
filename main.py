@@ -35,14 +35,16 @@ def get_schedule(day, parity):
                 time_str = row[5]  # Время из столбца F
                 minutes_to_first_pair = convert_time_to_minutes(time_str)
 
+
                 subject = {
                     'pair_number': row[2],
                     'name': row[3],
                     'type': row[4],
                     'time': row[5],
                     'location': row[6],
-                    'minutes_to_first_pair': minutes_to_first_pair
+                    'minutes_to_first_pair': minutes_to_first_pair,
                 }
+
                 schedule.append(subject)
 
         # Сортируем по номеру пары
@@ -52,6 +54,47 @@ def get_schedule(day, parity):
     except Exception as e:
         print(f"Ошибка при чтении Excel: {e}")
         return []
+
+# --- Фиксированное время подъёма и выхода ---
+TIME_TABLE = {
+    'МП': {
+        1: {'wake': '06:20', 'leave': '08:00'},
+        2: {'wake': '08:00', 'leave': '09:40'},
+        3: {'wake': '10:00', 'leave': '11:40'},
+        4: {'wake': '11:00', 'leave': '13:20'},
+        5: {'wake': '12:00', 'leave': '15:20'},
+    },
+    'СТ': {
+        1: {'wake': '05:50', 'leave': '07:30'},
+        2: {'wake': '07:30', 'leave': '09:00'},
+        3: {'wake': '09:20', 'leave': '11:00'},
+        4: {'wake': '', 'leave': ''},
+        5: {'wake': '', 'leave': ''},
+    },
+    'ПВ': {
+        1: {'wake': '06:30', 'leave': '08:10'},
+        2: {'wake': '08:20', 'leave': '10:00'},
+        3: {'wake': '10:20', 'leave': '12:00'},
+        4: {'wake': '12:00', 'leave': '13:30'},
+        5: {'wake': '', 'leave': ''},
+    }
+}
+
+def get_wake_leave(pair_number, location):
+    """Возвращает время подъема и выхода по номеру пары и корпусу"""
+    if 'МП' in location:
+        campus = 'МП'
+    elif 'С-20' in location:
+        campus = 'СТ'
+    elif 'В-78' in location:
+        campus = 'ПВ'
+    else:
+        campus = None
+
+    if campus and pair_number in TIME_TABLE[campus]:
+        return TIME_TABLE[campus][pair_number]['wake'], TIME_TABLE[campus][pair_number]['leave']
+    else:
+        return None, None
 
 
 # Функция для преобразования времени в минуты от начала дня
@@ -73,49 +116,25 @@ def calculate_wake_up_time(schedule, day_type):
     if not schedule:
         return "На выбранный день пар нет! Можно поспать подольше 😴"
 
-    # Находим первую пару
     first_pair = min(schedule, key=lambda x: x['pair_number'])
-    pair_number = first_pair['pair_number']
-    pair_time_minutes = first_pair['minutes_to_first_pair']
+    pair = first_pair['pair_number']
+    location = first_pair['location']
+    wake, leave = get_wake_leave(pair, location)
 
-    # Определяем время на дорогу в зависимости от корпуса
-    location = first_pair.get('location', '')
-    travel_time = 30  # базовое время дороги в минутах
+    # Если данных нет в словаре — подстрахуемся
+    if not wake:
+        return f"Не найдено время подъёма для пары {pair} ({location})"
 
-    # Определяем корпус по локации
-    if 'МП-1' in location:
-        travel_time = 70
-    elif 'В-78' in location:
-        travel_time = 60
-    elif 'С-20' in location:
-        travel_time = 100
+    text = (
+        f"📅 {day_type.capitalize()}\n\n"
+        f"⏰ Встать: {wake}\n"
+        f"🚪 Выйти: {leave}\n\n"
+        f"📚 Первая пара: {first_pair['time']} — {first_pair['name']} ({first_pair['type']})\n"
+        f"🏫 Место: {location}\n"
+    )
 
-    # Логика подъема
-    if pair_number >= 3:  # 3 пара и выше
-        preparation_time = 150  # 2.5 часа = 150 минут
-    else:
-        preparation_time = 120  # 2 часа = 120 минут
+    return text
 
-    # Общее время до выхода
-    total_minutes_before = preparation_time + travel_time
-
-    # Время подъема (в минутах от начала дня)
-    wake_up_minutes = pair_time_minutes - total_minutes_before
-    ready_to_go = pair_time_minutes - travel_time
-
-    # Преобразуем обратно в формат времени
-    wake_up_hours = wake_up_minutes // 60
-    wake_up_minutes = wake_up_minutes % 60
-
-    wake_up_time = f"{wake_up_hours:02d}:{wake_up_minutes:02d}"
-
-    result = f"⏰ Тебе нужно встать в {wake_up_time}\n"
-    result += f"📚 Первая пара: {first_pair['time']} ({first_pair['name']})\n"
-    result += f"🏫 Корпус: {location}\n"
-    result += f"🚗 Время на дорогу: {travel_time} мин\n"
-    result += f"🛏️ Выйти: {ready_to_go // 60}:{ready_to_go % 60}\n"
-
-    return result
 
 
 # Функция для форматирования расписания в красивый текст
